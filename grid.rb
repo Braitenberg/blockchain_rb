@@ -1,9 +1,15 @@
+require 'http'
+
 class Grid
 
   def initialize
     @members = []
     @pending = []
     @chain = {}
+  end
+
+  def members
+    @members
   end
 
   def connect(ip)
@@ -14,8 +20,15 @@ class Grid
     end
   end
 
-  def tell(event)
-    @members.map { |member| http.put "http://#{member}/sync?data=#{event}" }
+  def tell(member, message)
+    # TODO: member should be separate class
+    http.put "http://#{member}/sync?data=#{message}"
+  end
+
+  def join(adress)
+    @members.each do |member|
+      member.tell({adress: adress})
+    end
   end
 
   def get_chain_json

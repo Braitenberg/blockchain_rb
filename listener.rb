@@ -16,22 +16,24 @@ get '/' do
   JSON node.start
 end
 
-put '/sync' do
-  if not params['data']
-      params['data'] = { 'ip': request.ip }
+get '/sync' do
+  data = params[:data]
+  if not data
+      data = { adress: request.ip }
   end
 
   node.sync(data)
-
   return JSON node.data
 end
 
 get '/update' do
+  # TODO: return a list of potential storylines that then can
+  # be accepted or denied by the user
   node.pending
 end
 
 put '/update' do
-  node.proof_all(params['pending'])
+  node.accept(params[block_hash])
 end
 
 put '/generate' do

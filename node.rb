@@ -1,5 +1,3 @@
-require 'http'
-
 require_relative 'block'
 require_relative 'grid'
 
@@ -20,48 +18,11 @@ class Node
     @grid.connect(self)
   end
 
-  def sync(event)
-    # TODO: clean this function up, it is a mess
-    # tri: perhaps i should add a "update()" which return accepted
-    forward = false
-
-    data.keys.each do |key|
-      key.downcase
-
-      if key == :ip
-        if @nodes.include? data[:ip]
-          @nodes.push data[:ip]
-          accepted = true
-        end
-      elsif key == :block
-        adress = data[:block][:hash]
-
-        if not peding.include? adress or not chain.include? adress
-          accepted = true
-        end
-      end
+  def tell(message)
+    if message[:adress]
+      @grid.join(message[:adress])
     end
-
-    if accepted
-      return @grid.tell(event)
-    end
-  end
-
-  def update(key, value)
-    if key.equals(:ip)
-      if
-      @grid.join(value[:ip])
-    if key.equals(:block)
-      adress = data[:block][:hash]
-      if not pending.include?(adress)
-
-
-    def proof_all
-      @grid.pending.each do |json|
-        block = Block.new(json[:previous_hash], json[:data])
-        block.proof
-        self.add_block block
-    end
+    # TODO: add block message
   end
 
   def add_block(block)
