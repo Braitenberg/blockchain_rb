@@ -1,0 +1,32 @@
+
+  <p><b><%= to_sha(block) %></b></p>
+
+  <p> Status: </p>
+  <% if is_valid?(block) %>
+    <p style="color:green"><b>MINED</b></p>
+  <% else %>
+    <p style="color:red"><b>NOT MINED</b></p>
+
+    <form action="/block/mine" method="post">
+      <input type="hidden" name="sha" value=<%= to_sha(block) %>>
+      <input type="submit" value="Mine block">
+    </form>
+  <% end %>
+
+<form action="/block" method="post">
+  <b>Timestamp:</b><br>
+  <%= block[:timestamp] %><br>
+  <br>
+  <b>Previous block:</b><br>
+  <a href="/block?sha=<%=block[:prev_hash]%>">
+    <%=block[:prev_hash]%>
+  </a><br>
+  <br>
+  <b>Nonce:</b><br>
+  <input type="number" name="nonce" value=<%=block[:nonce]%>><br>
+  <br>
+  <b>Payload:</b><br>
+  <input type="text" name="payload" value=<%=block[:payload]%>><br>
+  <br>
+  <input type="submit" value="Submit">
+</form>

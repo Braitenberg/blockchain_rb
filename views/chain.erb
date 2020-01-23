@@ -1,0 +1,13 @@
+<h2> Block chain </h2>
+<table>
+    <th>ID (SHA256)</th>
+    <th>nonce</th>
+    <th>payload</th>
+  <% blocks.values.each do |block| %>
+    <tr>
+      <td><a href='/block?sha=<%=to_sha(block)%>'><%=to_sha(block)%></a></td>
+      <td><%=block[:nonce]%></td>
+      <td><%=block[:payload]%></td>
+    </tr>
+  <% end %>
+</table>

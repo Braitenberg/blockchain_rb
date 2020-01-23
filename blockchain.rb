@@ -4,65 +4,84 @@ require 'json'
 require 'time'
 require 'digest/md5'
 
-NEIGHBOURS = {}
-BLOCKCHAIN = {}
-PENDING_BLOCKS = []
-PREVIOUS_HASH = "0"
-VALID_HASH = '00'
-
-# Define a startpoint for peer discovery
-NEIGHBOURS["127.0.0.1:5000"] = true
-
-port_param = ARGV[0]
+VALID_START = '00'
 
 class Block
-  def initialize(options={nonce: 0, timestamp: Time.now})
-    @json = {block: options}
-    @nonce = options[:nonce]
-    @timestamp = options[:timestamp]
-    @previous_hash = options[:previous_hash]
-    @data = options[:data]
+
+  attr_accessor :previous_hash
+  attr_accessor :data
+
+  def initialize(previous_hash, data, nonce=0, timestamp=Time.now)
+    @nonce = nonce.to_i
+    @timestamp = timestamp
+    @previous_hash = previous_hash
+    @data = data
   end
 
-  def as_json
-    return @json
+  def from_json(json)
+    return self.new(
+      previous_hash: json["previous_hash"],
+      data: json["data"],
+      nonce: json["nonce"],
+      timestamp: json["timestamp"]
+    )
+  end
+
+  def to_json
+    return {
+      "previous_hash": @previous_hash,
+      "data": @data,
+      "nonce": @nonce,
+      "timestamp": @timestamp
+    }
+  end
+
+  def mine
+    until self.is_valid? do
+      puts "MINE"
+      @nonce += 1
+    end
+    return self
   end
 
   def is_valid?
-    return self.hashed.start_with?(VALID_HASH)
+    return self.hashed.start_with?(VALID_START)
   end
 
   def hashed
-    block_string = self.sort.to_h.to_json.encode
+    block_string = self.to_json.to_s
     Digest::MD5.hexdigest(block_string)
   end
 end
 
-
-class Transactor
-  # send() and receive() should complement each other
-  def send(params, port)
-    NEIGHBOURS.keys.each do |adress|
-      HTTP.put(
-        "http://#{adress}/transaction",
-        body: {block: params[:block], port: port}.to_json
-      )
+def find_last_block(chain)
+  chain.keys.each do |hash|
+    chain.values.each do |block|
+      if block.previous_hash == hash
+        break
+      end
     end
-    puts " * Sent block #{params[:block]}"
+    return chain[hash]
   end
+end
 
-  def receive(request)
-    puts " * Received #{request}"
+NEIGHBOURS = {}
+BLOCKCHAIN = {"0":Block.new("0", "")}
+PENDING_BLOCKS = []
 
-    request.body.rewind
-    NEIGHBOURS[request.ip + JSON.parse(request.body.read)["port"]] = true
+port_param = ARGV[0]
 
-    request.body.rewind
-    block = Block.new(JSON.parse(request.body.read)["block"])
-    if block.is_valid?
-      BLOCKCHAIN[block.hashed] = block
-    else
-      PENDING_BLOCKS.push(block)
+# Define a startpoint for peer discovery
+unless port_param == "5000"
+  NEIGHBOURS["127.0.0.1"] = "5000"
+end
+
+def tell_all(params, except)
+  NEIGHBOURS.each do |ip, port|
+    puts except, +" #{ip}:#{port}"
+    unless "#{ip}:#{port}" == except
+      puts "NOT EQUAL"
+      HTTP.post("http://#{ip}:#{port}/transaction", form: params)
     end
   end
 end
@@ -75,29 +94,43 @@ get '/' do
   return JSON(BLOCKCHAIN)
 end
 
-transaction = Transactor.new
+post '/transaction/mine' do
+  mined = PENDING_BLOCKS[params[:block_index].to_i].mine
+  BLOCKCHAIN[mined.hashed] = mined
 
-put '/transaction' do
-  transaction.receive(request)
+  json = mined.to_json
+
+  tell_all(mined.to_json, "#{request.ip}:#{params["port"]}")
+
+  PENDING_BLOCKS.delete_at(params[:block_index])
+  redirect '/transaction'
 end
 
-get '/transaction/new' do
- # TODO: return a form that calls GET /transaction
- # shows pending blocks too
- return erb :transaction_new, locals: {
-   pending: PENDING_BLOCKS
- }
+post '/transaction' do
+  puts " * Received #{params}"
+
+
+  tell_all(params, "#{request.ip}:#{params["port"]}")
+
+  block = Block.new(params["previous_hash"], params["sentence"], params["nonce"])
+
+  if block.is_valid?
+    BLOCKCHAIN[block.hashed] = block
+  else
+    puts "added #{block}"
+    PENDING_BLOCKS.push(block)
+  end
+
+  redirect '/transaction'
+
 end
 
 get '/transaction' do
-  params =
-  {
-    block: {
-      previous_hash: PREVIOUS_HASH,
-      data: "spanish inquisition"
-    }
-  }
-
-  transaction.send(params, port_param.to_str)
-  return '<img src="https://i0.kym-cdn.com/photos/images/facebook/001/170/001/c44.png" height=300>'
+ # TODO: return a form that calls GET /transaction
+ # shows pending blocks too
+ return erb :transaction_new, locals: {
+   port_param: port_param,
+   pending: PENDING_BLOCKS,
+   last_block: find_last_block(BLOCKCHAIN)
+ }
 end
